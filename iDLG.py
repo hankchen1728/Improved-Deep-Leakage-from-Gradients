@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-import pickle
+# import pickle
 import PIL.Image as Image
 
 
@@ -46,10 +46,10 @@ def weights_init(m):
         print('warning: failed in weights_init for %s.bias' % m._get_name())
 
 
-class Dataset_from_Image(Dataset):
+class ImageDataset(Dataset):
     def __init__(self, imgs, labs, transform=None):
-        self.imgs = imgs # img paths
-        self.labs = labs # labs is ndarray
+        self.imgs = imgs  # img paths
+        self.labs = labs  # labs is ndarray
         self.transform = transform
         del imgs, labs
 
@@ -77,7 +77,9 @@ def lfw_dataset(lfw_path, shape_img):
                 labels_all.append(foldidx)
 
     transform = transforms.Compose([transforms.Resize(size=shape_img)])
-    dst = Dataset_from_Image(images_all, np.asarray(labels_all, dtype=int), transform=transform)
+    dst = ImageDataset(
+            images_all, np.asarray(labels_all, dtype=int),
+            transform=transform)
     return dst
 
 
@@ -85,8 +87,9 @@ def main():
     dataset = 'lfw'
     root_path = '.'
     data_path = os.path.join(root_path, '../data').replace('\\', '/')
-    save_path = os.path.join(root_path, 'results/iDLG_%s'%dataset).replace('\\', '/')
-    
+    save_path = os.path.join(
+        root_path, 'results/iDLG_%s' % dataset).replace('\\', '/')
+
     lr = 1.0
     num_dummy = 1
     Iteration = 300
@@ -173,7 +176,7 @@ def main():
             out = net(gt_data)
             y = criterion(out, gt_label)
             dy_dx = torch.autograd.grad(y, net.parameters())
-            original_dy_dx = list((_.detach().clone() for _ in dy_dx))
+            original_dy_dx = list((t.detach().clone() for t in dy_dx))
 
             # generate dummy data and label
             dummy_data = torch.randn(gt_data.size()).to(device).requires_grad_(True)
@@ -252,7 +255,6 @@ def main():
                 loss_iDLG = losses
                 label_iDLG = label_pred.item()
                 mse_iDLG = mses
-
 
 
         print('imidx_list:', imidx_list)
