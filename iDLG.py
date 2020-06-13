@@ -244,6 +244,9 @@ def main(args):
                 # pixel value clip
                 # dummy_data.data.clamp(0, 1)
                 dummy_data.data = torch.clamp(dummy_data, 0, 1)
+                # dummy_gg = dummy_data.grad.data.cpu().numpy()
+                # print("Dummy data gradient max: %f, min: %f" %
+                #       (np.max(dummy_gg), np.min(dummy_gg)))
                 # dummy_label.data = torch.clamp(dummy_label, 0, 1)
                 # print(dummy_data.data.min(), dummy_data.data.max())
 
