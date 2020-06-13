@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 class CheXpertDataset(Dataset):
-    def __init__(self, csv_path, data_dir, transforms=None, mode='train'):
+    def __init__(self, csv_path, transforms=None, mode='train'):
         """
         Args:
             csv_path (string): path to csv file
