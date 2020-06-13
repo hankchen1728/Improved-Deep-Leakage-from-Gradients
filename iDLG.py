@@ -1,5 +1,6 @@
 import time
 import os
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -83,20 +84,21 @@ def lfw_dataset(lfw_path, shape_img):
     return dst
 
 
-def main():
-    dataset = 'lfw'
+def main(args):
+    os.environ["CUDA_VISIBLE_DEVICES"] = \
+        ','.join(str(gpu) for gpu in args.visible_gpus)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    dataset = args.dataset
     root_path = '.'
-    data_path = os.path.join(root_path, '../data').replace('\\', '/')
-    save_path = os.path.join(
-        root_path, 'results/iDLG_%s' % dataset).replace('\\', '/')
+    data_path = os.path.join(root_path, 'data')
+    save_path = os.path.join(root_path, 'results/iDLG_%s' % dataset)
 
-    lr = 1.0
+    # lr = 1.0
+    initial_lr = args.lr
     num_dummy = 1
-    Iteration = 300
+    Iteration = args.max_iter
     num_exp = 1000
-
-    use_cuda = torch.cuda.is_available()
-    device = 'cuda' if use_cuda else 'cpu'
 
     tt = transforms.Compose([transforms.ToTensor()])
     tp = transforms.Compose([transforms.ToPILImage()])
@@ -110,23 +112,22 @@ def main():
     if not os.path.exists(save_path):
         os.mkdir(save_path)
 
-
-
-    ''' load data '''
+    """ load data """
+    cmap = "viridis"
     if dataset == 'MNIST':
+        cmap = "gray"
         shape_img = (28, 28)
         num_classes = 10
         channel = 1
         hidden = 588
-        dst = datasets.MNIST(data_path, download=False)
+        dst = datasets.MNIST(data_path, download=True)
 
     elif dataset == 'cifar100':
         shape_img = (32, 32)
         num_classes = 100
         channel = 3
         hidden = 768
-        dst = datasets.CIFAR100(data_path, download=False)
-
+        dst = datasets.CIFAR100(data_path, download=True)
 
     elif dataset == 'lfw':
         shape_img = (32, 32)
@@ -139,16 +140,14 @@ def main():
     else:
         exit('unknown dataset')
 
-
-
-
     ''' train DLG and iDLG '''
     for idx_net in range(num_exp):
         net = LeNet(channel=channel, hideen=hidden, num_classes=num_classes)
         net.apply(weights_init)
 
-        print('running %d|%d experiment'%(idx_net, num_exp))
+        print('running %d|%d experiment' % (idx_net, num_exp))
         net = net.to(device)
+        np.random.seed(idx_net)
         idx_shuffle = np.random.permutation(len(dst))
 
         for method in ['DLG', 'iDLG']:
@@ -171,7 +170,6 @@ def main():
                     gt_data = torch.cat((gt_data, tmp_datum), dim=0)
                     gt_label = torch.cat((gt_label, tmp_label), dim=0)
 
-
             # compute original gradient
             out = net(gt_data)
             y = criterion(out, gt_label)
@@ -179,15 +177,31 @@ def main():
             original_dy_dx = list((t.detach().clone() for t in dy_dx))
 
             # generate dummy data and label
-            dummy_data = torch.randn(gt_data.size()).to(device).requires_grad_(True)
-            dummy_label = torch.randn((gt_data.shape[0], num_classes)).to(device).requires_grad_(True)
+            dummy_data = torch.randn(gt_data.size()).to(
+                device).requires_grad_(True)
+            dummy_label = torch.randn(
+                (gt_data.shape[0], num_classes)
+                ).to(device).requires_grad_(True)
+
+            # truncated dummy image and label
+            dummy_data.data = torch.clamp(dummy_data + 0.5, 0, 1)
 
             if method == 'DLG':
-                optimizer = torch.optim.LBFGS([dummy_data, dummy_label], lr=lr)
+                # optim_obj = [dummy_data, dummy_label]
+                optimizer = torch.optim.LBFGS(
+                    [{'params': [dummy_data, dummy_label],
+                      'initial_lr': initial_lr}],
+                    lr=initial_lr
+                    )
             elif method == 'iDLG':
-                optimizer = torch.optim.LBFGS([dummy_data, ], lr=lr)
+                # optim_obj = [dummy_data, ]
+                optimizer = torch.optim.LBFGS(
+                    [{'params': [dummy_data, ], 'initial_lr': initial_lr}],
+                    lr=initial_lr)
                 # predict the ground-truth label
-                label_pred = torch.argmin(torch.sum(original_dy_dx[-2], dim=-1), dim=-1).detach().reshape((1,)).requires_grad_(False)
+                label_pred = torch.argmin(
+                    torch.sum(original_dy_dx[-2], dim=-1),
+                    dim=-1).detach().reshape((1,)).requires_grad_(False)
 
             history = []
             history_iters = []
@@ -195,56 +209,86 @@ def main():
             mses = []
             train_iters = []
 
-            print('lr =', lr)
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer, step_size=30, gamma=0.95, last_epoch=0.1)
+            print('lr =', initial_lr)
             for iters in range(Iteration):
 
                 def closure():
                     optimizer.zero_grad()
                     pred = net(dummy_data)
                     if method == 'DLG':
-                        dummy_loss = - torch.mean(torch.sum(torch.softmax(dummy_label, -1) * torch.log(torch.softmax(pred, -1)), dim=-1))
+                        dummy_loss = - torch.mean(
+                            torch.sum(
+                                torch.softmax(dummy_label, -1) *
+                                torch.log(torch.softmax(pred, -1)),
+                                dim=-1)
+                        )
                         # dummy_loss = criterion(pred, gt_label)
                     elif method == 'iDLG':
                         dummy_loss = criterion(pred, label_pred)
 
-                    dummy_dy_dx = torch.autograd.grad(dummy_loss, net.parameters(), create_graph=True)
+                    dummy_dy_dx = torch.autograd.grad(
+                        dummy_loss, net.parameters(), create_graph=True
+                        )
 
                     grad_diff = 0
                     for gx, gy in zip(dummy_dy_dx, original_dy_dx):
                         grad_diff += ((gx - gy) ** 2).sum()
                     grad_diff.backward()
+                    # nn.utils.clip_grad_norm_([dummy_data], max_norm=0.1)
                     return grad_diff
 
                 optimizer.step(closure)
+
+                # pixel value clip
+                # dummy_data.data.clamp(0, 1)
+                dummy_data.data = torch.clamp(dummy_data, 0, 1)
+                # dummy_label.data = torch.clamp(dummy_label, 0, 1)
+                # print(dummy_data.data.min(), dummy_data.data.max())
+
                 current_loss = closure().item()
                 train_iters.append(iters)
                 losses.append(current_loss)
                 mses.append(torch.mean((dummy_data-gt_data)**2).item())
+                scheduler.step()
 
-
-                if iters % int(Iteration / 30) == 0:
-                    current_time = str(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()))
-                    print(current_time, iters, 'loss = %.8f, mse = %.8f' %(current_loss, mses[-1]))
-                    history.append([tp(dummy_data[imidx].cpu()) for imidx in range(num_dummy)])
+                # if iters % int(Iteration / 30) == 0:
+                if iters % 30 == 0:
+                    current_time = str(time.strftime(
+                        "[%Y-%m-%d %H:%M:%S]", time.localtime()))
+                    print(current_time, iters,
+                          'loss = %.8f, mse = %.8f' % (current_loss, mses[-1]))
+                    history.append([
+                        tp(dummy_data[imidx].cpu())
+                        for imidx in range(num_dummy)
+                        ])
                     history_iters.append(iters)
 
                     for imidx in range(num_dummy):
                         plt.figure(figsize=(12, 8))
                         plt.subplot(3, 10, 1)
-                        plt.imshow(tp(gt_data[imidx].cpu()))
+                        plt.imshow(tp(gt_data[imidx].cpu()), cmap=cmap)
                         for i in range(min(len(history), 29)):
                             plt.subplot(3, 10, i + 2)
-                            plt.imshow(history[i][imidx])
+                            plt.imshow(history[i][imidx], cmap=cmap)
                             plt.title('iter=%d' % (history_iters[i]))
                             plt.axis('off')
                         if method == 'DLG':
-                            plt.savefig('%s/DLG_on_%s_%05d.png' % (save_path, imidx_list, imidx_list[imidx]))
+                            plt.savefig(
+                                '%s/DLG_on_%s_%05d.png' %
+                                (save_path, imidx_list, imidx_list[imidx])
+                                )
                             plt.close()
                         elif method == 'iDLG':
-                            plt.savefig('%s/iDLG_on_%s_%05d.png' % (save_path, imidx_list, imidx_list[imidx]))
+                            plt.savefig(
+                                '%s/iDLG_on_%s_%05d.png' %
+                                (save_path, imidx_list, imidx_list[imidx])
+                                )
                             plt.close()
 
-                    if current_loss < 0.000001: # converge
+                    # if current_loss < 0.000001:  # converge
+                    if mses[-1] < 1e-6:
                         break
 
             if method == 'DLG':
@@ -256,15 +300,46 @@ def main():
                 label_iDLG = label_pred.item()
                 mse_iDLG = mses
 
-
         print('imidx_list:', imidx_list)
         print('loss_DLG:', loss_DLG[-1], 'loss_iDLG:', loss_iDLG[-1])
         print('mse_DLG:', mse_DLG[-1], 'mse_iDLG:', mse_iDLG[-1])
-        print('gt_label:', gt_label.detach().cpu().data.numpy(), 'lab_DLG:', label_DLG, 'lab_iDLG:', label_iDLG)
+        print('gt_label:', gt_label.detach().cpu().data.numpy(),
+              'lab_DLG:', label_DLG, 'lab_iDLG:', label_iDLG)
 
         print('----------------------\n\n')
 
+
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(
+        description="iDLG"
+        )
 
+    parser.add_argument(
+            "--visible_gpus",
+            type=int,
+            nargs='+',
+            default=[0],
+            help="CUDA visible gpus")
 
+    parser.add_argument(
+            "--lr",
+            type=float,
+            default=0.5,
+            help="learning rate")
+
+    parser.add_argument(
+            "--max_iter",
+            type=int,
+            default=300,
+            help="maximum iterations")
+
+    parser.add_argument(
+            "--dataset",
+            type=str,
+            default="MNIST",
+            help="use image dataset",
+            choices=["MNIST", "cifar100"])
+
+    args = parser.parse_args()
+
+    main(args)
