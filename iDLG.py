@@ -177,6 +177,7 @@ def main(args):
             original_dy_dx = list((t.detach().clone() for t in dy_dx))
 
             # generate dummy data and label
+            torch.cuda.manual_seed_all(10)
             dummy_data = torch.randn(gt_data.size()).to(
                 device).requires_grad_(True)
             dummy_label = torch.randn(
@@ -185,6 +186,7 @@ def main(args):
 
             # truncated dummy image and label
             dummy_data.data = torch.clamp(dummy_data + 0.5, 0, 1)
+            dummy_label.data = torch.clamp(dummy_label + 0.5, 0, 1)
 
             if method == 'DLG':
                 # optim_obj = [dummy_data, dummy_label]
@@ -247,8 +249,6 @@ def main(args):
                 # dummy_gg = dummy_data.grad.data.cpu().numpy()
                 # print("Dummy data gradient max: %f, min: %f" %
                 #       (np.max(dummy_gg), np.min(dummy_gg)))
-                # dummy_label.data = torch.clamp(dummy_label, 0, 1)
-                # print(dummy_data.data.min(), dummy_data.data.max())
 
                 current_loss = closure().item()
                 train_iters.append(iters)
