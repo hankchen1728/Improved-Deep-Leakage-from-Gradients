@@ -20,9 +20,7 @@ class CheXpertDataset(Dataset):
         """
 
         self.data = pd.read_csv(csv_path)
-
-        # non_true = np.where(self.data['Support Devices'] != 1)
-        # self.labels[non_true] = 0.
+        self.labels = np.asarray(self.data['Support Devices'])
         self.batch_id = 0
 
         self.transforms = transforms
