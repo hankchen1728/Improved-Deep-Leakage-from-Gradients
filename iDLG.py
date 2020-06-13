@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
+from dataset import CheXpertDataset
 # import pickle
 import PIL.Image as Image
 
@@ -137,6 +138,8 @@ def main(args):
         lfw_path = os.path.join(root_path, '../data/lfw')
         dst = lfw_dataset(lfw_path, shape_img)
 
+    elif dataset == 'CheXpert':
+        dst = CheXpertDataset(csv_path='./idlg_data_entry.csv')
     else:
         exit('unknown dataset')
 
