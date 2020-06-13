@@ -21,7 +21,7 @@ class CheXpertDataset(Dataset):
 
         self.data = pd.read_csv(csv_path)
 
-        # non_true = np.where(self.labels != 1)
+        # non_true = np.where(self.data['Support Devices'] != 1)
         # self.labels[non_true] = 0.
         self.batch_id = 0
 

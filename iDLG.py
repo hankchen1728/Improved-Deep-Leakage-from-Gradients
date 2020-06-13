@@ -140,7 +140,7 @@ def main(args):
 
     elif dataset == 'CheXpert':
         shape_img = (224, 224)
-        num_classes = 5749
+        num_classes = 2
         channel = 3
         hidden = 768
         dst = CheXpertDataset(csv_path='./idlg_data_entry.csv')
