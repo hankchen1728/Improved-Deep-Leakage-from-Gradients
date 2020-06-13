@@ -139,6 +139,10 @@ def main(args):
         dst = lfw_dataset(lfw_path, shape_img)
 
     elif dataset == 'CheXpert':
+        shape_img = (224, 224)
+        num_classes = 5749
+        channel = 3
+        hidden = 768
         dst = CheXpertDataset(csv_path='./idlg_data_entry.csv')
     else:
         exit('unknown dataset')
@@ -344,7 +348,7 @@ if __name__ == '__main__':
             type=str,
             default="MNIST",
             help="use image dataset",
-            choices=["MNIST", "cifar100"])
+            choices=["MNIST", "cifar100", "CheXpert"])
 
     args = parser.parse_args()
 
