@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-import torch.nn.functional as F
+# from torch.autograd import Variable
+# import torch.nn.functional as F
 
 
 class SwishBackend(torch.autograd.Function):
@@ -82,5 +82,5 @@ class ConvNet(nn.Module):
     def forward(self, x):
         x = self.features(x)
         out = x.view(x.size(0), -1)
-        out = self.classifier(x)
+        out = self.classifier(out)
         return out
