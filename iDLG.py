@@ -12,10 +12,46 @@ from dataset import CheXpertDataset
 import PIL.Image as Image
 
 
+class SwishBackend(torch.autograd.Function):
+    """Autograd implementation of Swish activation"""
+
+    @staticmethod
+    def forward(ctx, input_):
+        """Forward pass
+
+        Compute the swish activation and save the input tensor for backward
+        """
+        output = input_ * torch.sigmoid(input_)
+        ctx.save_for_backward(input_)
+        return output
+
+    @staticmethod
+    def backward(ctx, grade_output):
+        """Backward pass
+
+        Compute the gradient of Swish activation w.r.t. grade_ouput
+        """
+        input_ = ctx.saved_variables[0]
+        i_sigmoid = torch.sigmoid(input_)
+        return grade_output * (i_sigmoid * (1 + input_ * (1 - i_sigmoid)))
+
+
+class Swish(nn.Module):
+    """ Wrapper for Swish activation function.
+
+    Refs:
+        [Searching for Activation Functions](https://arxiv.org/abs/1710.05941)
+    """
+    def forward(self, x):
+        # return x * F.sigmoid(x)
+        return SwishBackend.apply(x)
+
+
 class LeNet(nn.Module):
     def __init__(self, channel=3, hideen=768, num_classes=10):
         super(LeNet, self).__init__()
         act = nn.Sigmoid
+        # act = Swish
         self.body = nn.Sequential(
             nn.Conv2d(channel, 12, kernel_size=5, padding=5 // 2, stride=2),
             act(),
@@ -94,6 +130,8 @@ def main(args):
     root_path = '.'
     data_path = os.path.join(root_path, 'data')
     save_path = os.path.join(root_path, 'results/iDLG_%s' % dataset)
+    if args.add_clamp:
+        save_path += "_clamp"
 
     # lr = 1.0
     initial_lr = args.lr
@@ -142,7 +180,7 @@ def main(args):
         shape_img = (224, 224)
         num_classes = 2
         channel = 3
-        hidden = 768
+        hidden = 94080
         dst = CheXpertDataset(csv_path='./idlg_data_entry.csv')
     else:
         exit('unknown dataset')
@@ -178,6 +216,7 @@ def main(args):
                     gt_label = torch.cat((gt_label, tmp_label), dim=0)
 
             # compute original gradient
+            print(gt_data.shape)
             out = net(gt_data)
             y = criterion(out, gt_label)
             dy_dx = torch.autograd.grad(y, net.parameters())
@@ -252,7 +291,8 @@ def main(args):
 
                 # pixel value clip
                 # dummy_data.data.clamp(0, 1)
-                dummy_data.data = torch.clamp(dummy_data, 0, 1)
+                if args.add_clamp:
+                    dummy_data.data = torch.clamp(dummy_data, 0, 1)
                 # dummy_gg = dummy_data.grad.data.cpu().numpy()
                 # print("Dummy data gradient max: %f, min: %f" %
                 #       (np.max(dummy_gg), np.min(dummy_gg)))
@@ -349,6 +389,10 @@ if __name__ == '__main__':
             default="MNIST",
             help="use image dataset",
             choices=["MNIST", "cifar100", "CheXpert"])
+
+    parser.add_argument(
+            "--add_clamp",
+            action="store_true")
 
     args = parser.parse_args()
 
