@@ -10,7 +10,18 @@ import numpy as np
 
 from torchvision import datasets
 from torchvision import transforms
-from torch.utils.data.sampler import SubsetRandomSampler
+from torch.utils.data import DataLoader, Subset
+# from torch.utils.data.sampler import SubsetRandomSampler
+
+
+def torch_same_seeds(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        # if you are using multi-GPU.
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
 def get_train_valid_loader(data_dir,
@@ -50,6 +61,9 @@ def get_train_valid_loader(data_dir,
     """
     error_msg = "[!] valid_size should be in the range [0, 1]."
     assert ((valid_size >= 0) and (valid_size <= 1)), error_msg
+
+    # Fix the pytorch random seed
+    torch_same_seeds(random_seed)
 
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
@@ -94,16 +108,27 @@ def get_train_valid_loader(data_dir,
         np.random.shuffle(indices)
 
     train_idx, valid_idx = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
+    # train_sampler = SubsetRandomSampler(train_idx)
+    # valid_sampler = SubsetRandomSampler(valid_idx)
+    train_dataset = Subset(train_dataset, train_idx)
+    valid_dataset = Subset(valid_dataset, valid_idx)
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, sampler=train_sampler,
-        num_workers=num_workers, pin_memory=pin_memory,
+    # train_loader = DataLoader(
+    #     train_dataset, batch_size=batch_size, sampler=train_sampler,
+    #     num_workers=num_workers, pin_memory=pin_memory,
+    # )
+    # valid_loader = DataLoader(
+    #     valid_dataset, batch_size=batch_size, sampler=valid_sampler,
+    #     num_workers=num_workers, pin_memory=pin_memory,
+    # )
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=shuffle,
+        num_workers=num_workers, pin_memory=pin_memory
     )
-    valid_loader = torch.utils.data.DataLoader(
-        valid_dataset, batch_size=batch_size, sampler=valid_sampler,
-        num_workers=num_workers, pin_memory=pin_memory,
+    valid_loader = DataLoader(
+        valid_dataset, batch_size=batch_size*2, shuffle=False,
+        num_workers=num_workers, pin_memory=pin_memory
     )
 
     return (train_loader, valid_loader)

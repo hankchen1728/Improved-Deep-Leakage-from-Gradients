@@ -30,14 +30,16 @@ class CheXpertDataset(Dataset):
         img_path = os.path.join(self.data.iloc[index]['Path'])
 
         img_as_np = plt.imread(img_path)
-        raw_shape = img_as_np.shape
-        img_as_np = np.array([img_as_np] * 3).reshape(raw_shape[0],
-                                                      raw_shape[1], 3)
+        # raw_shape = img_as_np.shape
+        img_as_np = np.array([img_as_np] * 3).transpose(1, 2, 0)
 
         img_as_np = Image.fromarray(img_as_np)
 
         # Transform image to tensor
-        img_as_tensor = self.transforms(img_as_np)
+        if self.transforms is not None:
+            img_as_tensor = self.transforms(img_as_np)
+        else:
+            img_as_tensor = img_as_np
         # Return image and the label
 
         # return (img_as_tensor.unsqueeze(2).repeat(1, 1, 3), label_as_tensor)

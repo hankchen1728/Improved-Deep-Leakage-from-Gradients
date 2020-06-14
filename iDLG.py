@@ -12,41 +12,6 @@ from dataset import CheXpertDataset
 import PIL.Image as Image
 
 
-class SwishBackend(torch.autograd.Function):
-    """Autograd implementation of Swish activation"""
-
-    @staticmethod
-    def forward(ctx, input_):
-        """Forward pass
-
-        Compute the swish activation and save the input tensor for backward
-        """
-        output = input_ * torch.sigmoid(input_)
-        ctx.save_for_backward(input_)
-        return output
-
-    @staticmethod
-    def backward(ctx, grade_output):
-        """Backward pass
-
-        Compute the gradient of Swish activation w.r.t. grade_ouput
-        """
-        input_ = ctx.saved_variables[0]
-        i_sigmoid = torch.sigmoid(input_)
-        return grade_output * (i_sigmoid * (1 + input_ * (1 - i_sigmoid)))
-
-
-class Swish(nn.Module):
-    """ Wrapper for Swish activation function.
-
-    Refs:
-        [Searching for Activation Functions](https://arxiv.org/abs/1710.05941)
-    """
-    def forward(self, x):
-        # return x * F.sigmoid(x)
-        return SwishBackend.apply(x)
-
-
 class LeNet(nn.Module):
     def __init__(self, channel=3, hideen=768, num_classes=10):
         super(LeNet, self).__init__()

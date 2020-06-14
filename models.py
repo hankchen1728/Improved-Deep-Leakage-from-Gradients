@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.init as init
+from mnist_dataloader import torch_same_seeds
 # from torch.autograd import Variable
 # import torch.nn.functional as F
 
@@ -37,6 +39,24 @@ class Swish(nn.Module):
     def forward(self, x):
         # return x * F.sigmoid(x)
         return SwishBackend.apply(x)
+
+
+def init_weights(m):
+    '''Init layer parameters.'''
+    torch_same_seeds(10)
+    if isinstance(m, nn.Conv2d):
+        init.kaiming_normal_(m.weight, mode='fan_out')
+        m.weight.data = torch.clamp(m.weight, -1, 1)
+        if hasattr(m, "bias"):
+            init.constant_(m.bias, 0)
+    elif isinstance(m, nn.BatchNorm2d):
+        init.constant_(m.weight, 1)
+        init.constant_(m.bias, 0)
+    elif isinstance(m, nn.Linear):
+        init.normal_(m.weight, std=1e-3)
+        m.weight.data = torch.clamp(m.weight, -1, 1)
+        if hasattr(m, "bias"):
+            init.constant_(m.bias, 0)
 
 
 class Conv2dAct(nn.Sequential):
@@ -78,6 +98,9 @@ class ConvNet(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(conv_channels[-1], num_classes)
         )
+
+        # Initialize the model weights
+        self.apply(init_weights)
 
     def forward(self, x):
         x = self.features(x)
