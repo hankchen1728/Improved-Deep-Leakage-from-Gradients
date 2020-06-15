@@ -11,7 +11,6 @@ from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from dataset import CheXpertDataset
 from models import ConvNet
-from iDLG import weights_init
 
 
 class ImageDataset(Dataset):
@@ -54,7 +53,7 @@ def lfw_dataset(lfw_path, shape_img):
 def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
     assert net_name in ["CNN_L2D1", "CNN_L2D2", "CNN_L4D1", "CNN_L4D2"]
     if net_name == "CNN_L2D1":
-        conv_channels = [12, 12, 12]
+        conv_channels = [32, 64]
     elif net_name == "CNN_L2D2":
         conv_channels = [64, 128]
     elif net_name == "CNN_L4D1":
@@ -150,9 +149,6 @@ def main(args):
         net_name=net_name, input_shape=(channel,)+shape_img,
         num_classes=num_classes
     )
-    net.apply(weights_init)
-    # net = LeNet(channel=1, hideen=588, num_classes=10)
-    # net.apply(weights_init)
     net = net.to(device)
 
     # Load model pretrain weights

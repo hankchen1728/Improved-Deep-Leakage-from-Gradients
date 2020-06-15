@@ -154,6 +154,7 @@ def main(args):
     for idx_net in range(num_exp):
         net = LeNet(channel=channel, hideen=hidden, num_classes=num_classes)
         net.apply(weights_init)
+        # net = config_net(net_name="CNN_L2D2", input_shape=(1, 28, 28))
 
         print('running %d|%d experiment' % (idx_net, num_exp))
         net = net.to(device)

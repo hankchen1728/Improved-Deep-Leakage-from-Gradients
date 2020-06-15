@@ -11,7 +11,6 @@ import numpy as np
 from torchvision import datasets
 from torchvision import transforms
 from torch.utils.data import DataLoader, Subset
-# from torch.utils.data.sampler import SubsetRandomSampler
 
 
 def torch_same_seeds(seed):
@@ -24,14 +23,16 @@ def torch_same_seeds(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def get_train_valid_loader(data_dir,
-                           batch_size,
-                           augment,
-                           random_seed,
-                           valid_size=0.1,
-                           shuffle=True,
-                           num_workers=4,
-                           pin_memory=False):
+def get_train_valid_loader(
+        data_dir,
+        batch_size,
+        augment,
+        random_seed,
+        valid_size=0.1,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=False,
+        dst_name="cifar10"):
     """
     Utility function for loading and returning train and valid
     multi-process iterators over the CIFAR-10 dataset. A sample
@@ -49,7 +50,6 @@ def get_train_valid_loader(data_dir,
     - valid_size: percentage split of the training set used for
       the validation set. Should be a float in the range [0, 1].
     - shuffle: whether to shuffle the train/validation indices.
-    - show_sample: plot 9x9 sample grid of the dataset.
     - num_workers: number of subprocesses to use when loading the dataset.
     - pin_memory: whether to copy tensors into CUDA pinned memory. Set it to
       True if using GPU.
@@ -62,39 +62,46 @@ def get_train_valid_loader(data_dir,
     error_msg = "[!] valid_size should be in the range [0, 1]."
     assert ((valid_size >= 0) and (valid_size <= 1)), error_msg
 
+    if dst_name == "MNIST":
+        torch_Dataset = datasets.MNIST
+    elif dst_name == "cifar10":
+        torch_Dataset = datasets.CIFAR10
+    elif dst_name == "cifar100":
+        torch_Dataset = datasets.CIFAR100
+
     # Fix the pytorch random seed
     torch_same_seeds(random_seed)
 
-    normalize = transforms.Normalize(
-        mean=[0.4914, 0.4822, 0.4465],
-        std=[0.2023, 0.1994, 0.2010],
-    )
+    # normalize = transforms.Normalize(
+    #     mean=[0.4914, 0.4822, 0.4465],
+    #     std=[0.2023, 0.1994, 0.2010],
+    # )
 
     # define transforms
     valid_transform = transforms.Compose([
             transforms.ToTensor(),
-            normalize,
+            # normalize,
     ])
     if augment:
         train_transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            normalize,
+            # normalize,
         ])
     else:
         train_transform = transforms.Compose([
             transforms.ToTensor(),
-            normalize,
+            # normalize,
         ])
 
     # load the dataset
-    train_dataset = datasets.MNIST(
+    train_dataset = torch_Dataset(
         root=data_dir, train=True,
         download=True, transform=train_transform,
     )
 
-    valid_dataset = datasets.MNIST(
+    valid_dataset = torch_Dataset(
         root=data_dir, train=True,
         download=True, transform=valid_transform,
     )
@@ -108,19 +115,8 @@ def get_train_valid_loader(data_dir,
         np.random.shuffle(indices)
 
     train_idx, valid_idx = indices[split:], indices[:split]
-    # train_sampler = SubsetRandomSampler(train_idx)
-    # valid_sampler = SubsetRandomSampler(valid_idx)
     train_dataset = Subset(train_dataset, train_idx)
     valid_dataset = Subset(valid_dataset, valid_idx)
-
-    # train_loader = DataLoader(
-    #     train_dataset, batch_size=batch_size, sampler=train_sampler,
-    #     num_workers=num_workers, pin_memory=pin_memory,
-    # )
-    # valid_loader = DataLoader(
-    #     valid_dataset, batch_size=batch_size, sampler=valid_sampler,
-    #     num_workers=num_workers, pin_memory=pin_memory,
-    # )
 
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=shuffle,
@@ -134,11 +130,13 @@ def get_train_valid_loader(data_dir,
     return (train_loader, valid_loader)
 
 
-def get_test_loader(data_dir,
-                    batch_size,
-                    shuffle=True,
-                    num_workers=4,
-                    pin_memory=False):
+def get_test_loader(
+        data_dir,
+        batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=False,
+        dst_name="MNIST"):
     """
     Utility function for loading and returning a multi-process
     test iterator over the CIFAR-10 dataset.
@@ -158,18 +156,26 @@ def get_test_loader(data_dir,
     -------
     - data_loader: test set iterator.
     """
-    normalize = transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225],
-    )
+
+    if dst_name == "MNIST":
+        torch_Dataset = datasets.MNIST
+    elif dst_name == "cifar10":
+        torch_Dataset = datasets.CIFAR10
+    elif dst_name == "cifar100":
+        torch_Dataset = datasets.CIFAR100
+
+    # normalize = transforms.Normalize(
+    #     mean=[0.485, 0.456, 0.406],
+    #     std=[0.229, 0.224, 0.225],
+    # )
 
     # define transform
     transform = transforms.Compose([
         transforms.ToTensor(),
-        normalize,
+        # normalize,
     ])
 
-    dataset = datasets.MNIST(
+    dataset = torch_Dataset(
         root=data_dir, train=False,
         download=True, transform=transform,
     )

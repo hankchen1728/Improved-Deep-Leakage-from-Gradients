@@ -47,16 +47,20 @@ def init_weights(m):
     if isinstance(m, nn.Conv2d):
         init.kaiming_normal_(m.weight, mode='fan_out')
         m.weight.data = torch.clamp(m.weight, -1, 1)
+        # m.weight.data.uniform_(-0.5, 0.5)
         if hasattr(m, "bias"):
-            init.constant_(m.bias, 0.5)
+            # init.constant_(m.bias, 0.5)
+            m.weight.data.uniform_(-0.5, 0.5)
     elif isinstance(m, nn.BatchNorm2d):
         init.constant_(m.weight, 1)
         init.constant_(m.bias, 0)
     elif isinstance(m, nn.Linear):
         init.normal_(m.weight, std=1e-3)
         m.weight.data = torch.clamp(m.weight, -1, 1)
+        # m.weight.data.uniform_(-0.5, 0.5)
         if hasattr(m, "bias"):
-            init.constant_(m.bias, 0.5)
+            # init.constant_(m.bias, 0.5)
+            m.weight.data.uniform_(-0.5, 0.5)
 
 
 class Conv2dAct(nn.Sequential):
@@ -136,7 +140,7 @@ class ConvNet(nn.Module):
         )
 
         # Initialize the model weights
-        # self.apply(init_weights)
+        self.apply(init_weights)
 
     def forward(self, x):
         x = self.features(x)
