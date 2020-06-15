@@ -1,35 +1,39 @@
-# Improved-Deep-Leakage-from-Gradients
-The code for "[Improved Deep Leakage from Gradients](https://arxiv.org/pdf/2001.02610.pdf)" (iDLG).
+# Gradient Parameter Estimate
 
-## Abstract <br>
-It is widely believed that sharing gradients will not leak private training data in distributed learning systems such as Collaborative Learning and Federated Learning, etc. Recently, Zhu et al. [1] presented an approach which shows the possibility to obtain private training data from the publicly shared gradients. In their Deep Leakage from Gradient (DLG) method, they synthesize the dummy data and corresponding labels with the supervision of shared gradients. However, DLG has difficulty in convergence and discovering the ground-truth labels consistently. In this paper, we find that sharing gradients definitely leaks the ground-truth labels. We propose a simple but reliable approach to extract accurate data from the gradients. Particularly, our approach can certainly extract the ground-truth labels as opposed to DLG, hence we name it Improved DLG (iDLG). Our approach is valid for any differentiable model trained with cross-entropy loss over one-hot labels. We mathematically illustrate how our method can extract ground-truth labels from the gradients and empirically demonstrate the advantages over DLG. <br><br>
+## Motivation
 
+In ***Deep Leakage in Gradients*** shows the possibility of obtaining private training data from the corresponding gradient. Furthermore, in ***Improved Deep Leakage in Gradients*** proved that gradients definitely leaks the ground-truth labels and presented an accurate and reliable method (iDLG) to extract accurate data from its gradients. Both paper claimed its method is independent to the deep neural network parameters. Thus, we are curious about the relationship between the difficulty and efficiency of extracting data from its gradients corresponding to the model parameters amount and architecture.
 
-## Experiments <br>
-| Dataset | DLG | iDLG |
- :-: | :-: | :-:
-| MNIST | 89.9% | 100.0% |
-| CIFAR-100 | 83.3% | 100.0% |
-| LFW | 79.1% | 100.0% |
+## Tasks
 
-
-Table 1: Accuracy of the extracted labels for DLG [1] and iDLG. Note that iDLG always extracts the correct
-label as opposed to DLG which extracts wrong labels frequently.
-
-<br><br>
-<div align=center><img src="https://github.com/PatrickZH/Improved-Deep-Leakage-from-Gradients/blob/master/Figure1.png"/></div>
+- [ ] Model architecture design with different parameters amount magnitude.
+- [ ] Randomly pick 3 images from each category of MNIST.
+- [ ] Pick top three high gradients magnitude of each model corresponding to each category of MNIST
+- [ ] Train, validate, and test models on MNIST.
+- [ ] Run DLG and iDLG on models with the chosen images and record the MSE corresponding to iterations.
 
 
-<br><br>
-<div align=center><img src="https://github.com/PatrickZH/Improved-Deep-Leakage-from-Gradients/blob/master/Figure2.png"/></div>
-<br><br>
 
-## Cite <br>
-```
-@article{zhao2020idlg,
-  title={iDLG: Improved Deep Leakage from Gradients},
-  author={Zhao, Bo and Mopuri, Konda Reddy and Bilen, Hakan},
-  journal={arXiv preprint arXiv:2001.02610},
-  year={2020}
-}
-```
+## Expetiments Design
+
+### Dataset Information
+
+
+
+### Model Summary
+
+| No.  | Model        | ConvNet Channels    | Trainable Params # | Train Acc. | Val. Acc. | Test. Acc. |
+| :--- | :----------- | :------------------ | -----------------: | ---------: | --------: | ---------: |
+| 1    | CNN_L2D1     | [32, 64]            |             34,026 |        63% |           |        63% |
+| 2    | CNN_L2D2     | [64, 128]           |            133,578 |        74% |           |        74% |
+| 3    | CNN_L4D1     | [32, 64, 128, 256]  |            691,690 |        95% |           |        95% |
+| 4    | CNN_L4D2     | [64, 128, 256, 512] |          2,759,626 |        94% |           |        94% |
+| 5    | **CNN_Base** | x                   |          1,199,882 |            |           |            |
+
+
+
+### Randomly Picked Images
+
+
+
+### iDLG MSE w.r.t Iterations Curves
