@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from dataset import CheXpertDataset
 from models import ConvNet
+from iDLG import weights_init
 
 
 class ImageDataset(Dataset):
@@ -53,7 +54,7 @@ def lfw_dataset(lfw_path, shape_img):
 def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
     assert net_name in ["CNN_L2D1", "CNN_L2D2", "CNN_L4D1", "CNN_L4D2"]
     if net_name == "CNN_L2D1":
-        conv_channels = [32, 64]
+        conv_channels = [12, 12, 12]
     elif net_name == "CNN_L2D2":
         conv_channels = [64, 128]
     elif net_name == "CNN_L4D1":
@@ -87,7 +88,20 @@ def main(args):
     initial_lr = args.lr
     num_dummy = 1
     Iteration = args.max_iter
-    num_exp = 1000
+    num_exp = 30
+
+    selected_indices = np.array([
+        1, 21, 34,  # label : 0
+        3,  6,  8,  # label : 1
+        5, 16, 25,  # label : 2
+        7, 10, 12,  # label : 3
+        2,  9, 20,  # label : 4
+        0, 11, 35,  # label : 5
+        13, 18, 32,  # label : 6
+        15, 29, 38,  # label : 7
+        17, 31, 41,  # label : 8
+        4, 19, 22   # label : 9
+        ])
 
     tt = transforms.Compose([transforms.ToTensor()])
     tp = transforms.Compose([transforms.ToPILImage()])
@@ -136,6 +150,9 @@ def main(args):
         net_name=net_name, input_shape=(channel,)+shape_img,
         num_classes=num_classes
     )
+    net.apply(weights_init)
+    # net = LeNet(channel=1, hideen=588, num_classes=10)
+    # net.apply(weights_init)
     net = net.to(device)
 
     # Load model pretrain weights
@@ -149,7 +166,7 @@ def main(args):
 
         print('running %d|%d experiment' % (idx_exp, num_exp))
         np.random.seed(idx_exp)
-        idx_shuffle = np.random.permutation(len(dst))
+        # idx_shuffle = np.random.permutation(len(dst))
 
         for method in ['DLG', 'iDLG']:
             print('%s, Try to generate %d images' % (method, num_dummy))
@@ -157,22 +174,17 @@ def main(args):
             # criterion = nn.CrossEntropyLoss().to(device)
             imidx_list = []
 
-            for imidx in range(num_dummy):
-                idx = idx_shuffle[imidx]
-                imidx_list.append(idx)
-                tmp_datum = tt(dst[idx][0]).float().to(device)
-                tmp_datum = tmp_datum.view(1, *tmp_datum.size())
-                tmp_label = torch.Tensor([dst[idx][1]]).long().to(device)
-                tmp_label = tmp_label.view(1, )
-                if imidx == 0:
-                    gt_data = tmp_datum
-                    gt_label = tmp_label
-                else:
-                    gt_data = torch.cat((gt_data, tmp_datum), dim=0)
-                    gt_label = torch.cat((gt_label, tmp_label), dim=0)
+            # get ground truth image and label
+            idx = selected_indices[idx_exp]
+            imidx_list.append(idx)
+            tmp_datum = tt(dst[idx][0]).float().to(device)
+            tmp_datum = tmp_datum.view(1, *tmp_datum.size())
+            tmp_label = torch.Tensor([dst[idx][1]]).long().to(device)
+            tmp_label = tmp_label.view(1, )
+            gt_data = tmp_datum
+            gt_label = tmp_label
 
             # compute original gradient
-            print(gt_data.shape)
             out = net(gt_data)
             y = criterion(out, gt_label)
             dy_dx = torch.autograd.grad(y, net.parameters())
@@ -214,7 +226,7 @@ def main(args):
             train_iters = []
 
             scheduler = torch.optim.lr_scheduler.StepLR(
-                optimizer, step_size=30, gamma=0.95, last_epoch=0.1)
+                optimizer, step_size=30, gamma=0.95, last_epoch=-1)
             print('lr =', initial_lr)
             for iters in range(Iteration):
 

@@ -3,6 +3,9 @@
 # Python cache
 **/__pycache__/
 
+# Vim swp files
+**/.*.swp
+
 # Jupyter notebooks
 **/.ipynb_checkpoints/
 **/notebooks/
