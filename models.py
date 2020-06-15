@@ -8,7 +8,6 @@ from mnist_dataloader import torch_same_seeds
 
 class SwishBackend(torch.autograd.Function):
     """Autograd implementation of Swish activation"""
-
     @staticmethod
     def forward(ctx, input_):
         """Forward pass
@@ -60,23 +59,34 @@ def init_weights(m):
 
 
 class Conv2dAct(nn.Sequential):
-    def __init__(self, in_planes, out_planes, kernel_size=3,
-                 stride=1, padding=1, groups=1,
+    def __init__(self,
+                 in_planes,
+                 out_planes,
+                 kernel_size=3,
+                 stride=1,
+                 padding=1,
+                 groups=1,
                  activation=nn.Sigmoid):
         padding = (kernel_size - 1) // 2 if not padding else padding
         super(Conv2dAct, self).__init__(
-            nn.Conv2d(in_planes, out_planes, kernel_size, stride,
-                      padding, groups=groups),
-            activation()
-        )
+            nn.Conv2d(in_planes,
+                      out_planes,
+                      kernel_size,
+                      stride,
+                      padding,
+                      groups=groups), activation())
 
 
 class ConvNet(nn.Module):
     """Pytorch implementation of CNN"""
-    def __init__(self, image_shape=(3, 32, 32),
+    def __init__(self,
+                 image_shape=(3, 32, 32),
                  conv_channels=[12, 24, 48],
-                 kernel_size=4, stride=2, padding=1,
-                 num_classes=10, use_swish=False):
+                 kernel_size=4,
+                 stride=2,
+                 padding=1,
+                 num_classes=10,
+                 use_swish=False):
         super(ConvNet, self).__init__()
         # Default input channel is 3
         num_conv = len(conv_channels)
@@ -86,18 +96,17 @@ class ConvNet(nn.Module):
             activation = Swish
         # Build encoder layers
         features = [
-            Conv2dAct(conv_channels[i], conv_channels[i+1],
+            Conv2dAct(conv_channels[i],
+                      conv_channels[i + 1],
                       kernel_size=kernel_size,
                       stride=stride,
                       padding=padding,
-                      activation=activation)
-            for i in range(num_conv)
-            ]
+                      activation=activation) for i in range(num_conv)
+        ]
         features.append(nn.AdaptiveAvgPool2d((1, 1)))
         self.features = nn.Sequential(*features)
         self.classifier = nn.Sequential(
-            nn.Linear(conv_channels[-1], num_classes)
-        )
+            nn.Linear(conv_channels[-1], num_classes))
 
         # Initialize the model weights
         self.apply(init_weights)
