@@ -1,6 +1,8 @@
 import time
 import os
 import argparse
+import PIL.Image as Image
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -8,45 +10,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from dataset import CheXpertDataset
-# import pickle
-import PIL.Image as Image
-
-
-class LeNet(nn.Module):
-    def __init__(self, channel=3, hideen=768, num_classes=10):
-        super(LeNet, self).__init__()
-        act = nn.Sigmoid
-        # act = Swish
-        self.body = nn.Sequential(
-            nn.Conv2d(channel, 12, kernel_size=5, padding=5 // 2, stride=2),
-            act(),
-            nn.Conv2d(12, 12, kernel_size=5, padding=5 // 2, stride=2),
-            act(),
-            nn.Conv2d(12, 12, kernel_size=5, padding=5 // 2, stride=1),
-            act(),
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(hideen, num_classes)
-        )
-
-    def forward(self, x):
-        out = self.body(x)
-        out = out.view(out.size(0), -1)
-        out = self.fc(out)
-        return out
-
-
-def weights_init(m):
-    try:
-        if hasattr(m, "weight"):
-            m.weight.data.uniform_(-0.5, 0.5)
-    except Exception:
-        print('warning: failed in weights_init for %s.weight' % m._get_name())
-    try:
-        if hasattr(m, "bias"):
-            m.bias.data.uniform_(-0.5, 0.5)
-    except Exception:
-        print('warning: failed in weights_init for %s.bias' % m._get_name())
+from models import ConvNet
 
 
 class ImageDataset(Dataset):
@@ -86,15 +50,36 @@ def lfw_dataset(lfw_path, shape_img):
     return dst
 
 
+def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
+    assert net_name in ["CNN_L2D1", "CNN_L2D2", "CNN_L4D1", "CNN_L4D2"]
+    if net_name == "CNN_L2D1":
+        conv_channels = [32, 64]
+    elif net_name == "CNN_L2D2":
+        conv_channels = [64, 128]
+    elif net_name == "CNN_L4D1":
+        conv_channels = [32, 64, 128, 256]
+    elif net_name == "CNN_L4D2":
+        conv_channels = [64, 128, 256, 512]
+    net = ConvNet(
+        image_shape=input_shape,
+        conv_channels=conv_channels,
+        num_classes=num_classes
+    )
+    return net
+
+
 def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = \
         ','.join(str(gpu) for gpu in args.visible_gpus)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     dataset = args.dataset
+    net_name = args.cnn_name
     root_path = '.'
-    data_path = os.path.join(root_path, 'data')
-    save_path = os.path.join(root_path, 'results/iDLG_%s' % dataset)
+    data_path = os.path.join(root_path, "data")
+    save_path = os.path.join(
+        root_path, "results", "iDLG_%s_%s" % (dataset, net_name)
+    )
     if args.add_clamp:
         save_path += "_clamp"
 
@@ -123,21 +108,18 @@ def main(args):
         shape_img = (28, 28)
         num_classes = 10
         channel = 1
-        hidden = 588
         dst = datasets.MNIST(data_path, download=True)
 
     elif dataset == 'cifar100':
         shape_img = (32, 32)
         num_classes = 100
         channel = 3
-        hidden = 768
         dst = datasets.CIFAR100(data_path, download=True)
 
     elif dataset == 'lfw':
         shape_img = (32, 32)
         num_classes = 5749
         channel = 3
-        hidden = 768
         lfw_path = os.path.join(root_path, '../data/lfw')
         dst = lfw_dataset(lfw_path, shape_img)
 
@@ -145,25 +127,34 @@ def main(args):
         shape_img = (224, 224)
         num_classes = 2
         channel = 3
-        hidden = 94080
         dst = CheXpertDataset(csv_path='./idlg_data_entry.csv')
     else:
         exit('unknown dataset')
 
-    ''' train DLG and iDLG '''
-    for idx_net in range(num_exp):
-        net = LeNet(channel=channel, hideen=hidden, num_classes=num_classes)
-        net.apply(weights_init)
+    # Build ConvNet
+    net = config_net(
+        net_name=net_name, input_shape=(channel,)+shape_img,
+        num_classes=num_classes
+    )
+    net = net.to(device)
 
-        print('running %d|%d experiment' % (idx_net, num_exp))
-        net = net.to(device)
-        np.random.seed(idx_net)
+    # Load model pretrain weights
+    if os.path.isfile(args.model_ckpt):
+        ckpt = torch.load(args.model_ckpt)
+        net.load_state_dict(ckpt)
+
+    criterion = nn.CrossEntropyLoss().to(device)
+    ''' train DLG and iDLG '''
+    for idx_exp in range(num_exp):
+
+        print('running %d|%d experiment' % (idx_exp, num_exp))
+        np.random.seed(idx_exp)
         idx_shuffle = np.random.permutation(len(dst))
 
         for method in ['DLG', 'iDLG']:
             print('%s, Try to generate %d images' % (method, num_dummy))
 
-            criterion = nn.CrossEntropyLoss().to(device)
+            # criterion = nn.CrossEntropyLoss().to(device)
             imidx_list = []
 
             for imidx in range(num_dummy):
@@ -331,6 +322,19 @@ if __name__ == '__main__':
             nargs='+',
             default=[0],
             help="CUDA visible gpus")
+
+    parser.add_argument(
+            "--cnn_name",
+            type=str,
+            default="CNN_L2D1",
+            choices=["CNN_L2D1", "CNN_L2D2", "CNN_L4D1", "CNN_L4D2"],
+            help="CNN config")
+
+    parser.add_argument(
+            "--model_ckpt",
+            type=str,
+            default="",
+            help="Model checkpoint")
 
     parser.add_argument(
             "--lr",
