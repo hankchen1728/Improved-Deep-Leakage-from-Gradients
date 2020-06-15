@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -47,7 +48,7 @@ def init_weights(m):
         init.kaiming_normal_(m.weight, mode='fan_out')
         m.weight.data = torch.clamp(m.weight, -1, 1)
         if hasattr(m, "bias"):
-            init.constant_(m.bias, 0)
+            init.constant_(m.bias, 0.5)
     elif isinstance(m, nn.BatchNorm2d):
         init.constant_(m.weight, 1)
         init.constant_(m.bias, 0)
@@ -55,7 +56,7 @@ def init_weights(m):
         init.normal_(m.weight, std=1e-3)
         m.weight.data = torch.clamp(m.weight, -1, 1)
         if hasattr(m, "bias"):
-            init.constant_(m.bias, 0)
+            init.constant_(m.bias, 0.5)
 
 
 class Conv2dAct(nn.Sequential):
@@ -75,6 +76,19 @@ class Conv2dAct(nn.Sequential):
                       stride,
                       padding,
                       groups=groups), activation())
+
+
+def get_conv_out_size(
+        in_size,
+        num_conv,
+        kernel_size=4,
+        stride=2,
+        padding=1):
+    out_size = in_size
+    for _ in range(num_conv):
+        out_size = math.floor((out_size + 2 * padding - kernel_size) / stride)
+        out_size += 1
+    return int(out_size)
 
 
 class ConvNet(nn.Module):
@@ -103,13 +117,26 @@ class ConvNet(nn.Module):
                       padding=padding,
                       activation=activation) for i in range(num_conv)
         ]
-        features.append(nn.AdaptiveAvgPool2d((1, 1)))
+
+        # Compute the feature out size
+        f_out_size = get_conv_out_size(
+            image_shape[1],
+            num_conv=num_conv,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding)
+
+        # features.append(nn.AdaptiveAvgPool2d((1, 1)))
         self.features = nn.Sequential(*features)
+        # self.classifier = nn.Sequential(
+        #     nn.Linear(conv_channels[-1], num_classes))
+        out_size = conv_channels[-1] * (f_out_size**2)
         self.classifier = nn.Sequential(
-            nn.Linear(conv_channels[-1], num_classes))
+            nn.Linear(out_size, num_classes)
+        )
 
         # Initialize the model weights
-        self.apply(init_weights)
+        # self.apply(init_weights)
 
     def forward(self, x):
         x = self.features(x)
