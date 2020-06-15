@@ -1,0 +1,17 @@
+# Ignore the folder and files listed following
+
+# Python cache
+**/__pycache__/
+
+# Jupyter notebooks
+**/.ipynb_checkpoints/
+**/notebooks/
+
+# Data folder
+**/data/
+
+# Temporary files
+**/tmp/
+
+# Ignore the experiment checkpoints
+**/checkpoint/
