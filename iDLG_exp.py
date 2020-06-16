@@ -9,8 +9,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-from dataset import CheXpertDataset
 from models import ConvNet
+from dataset import CheXpertDataset
+# from iDLG import LeNet, weights_init
 
 
 class ImageDataset(Dataset):
@@ -51,7 +52,8 @@ def lfw_dataset(lfw_path, shape_img):
 
 
 def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
-    assert net_name in ["CNN_L2D1", "CNN_L2D2", "CNN_L4D1", "CNN_L4D2"]
+    assert net_name in ["CNN_L2D1", "CNN_L2D2",
+                        "CNN_L4D1", "CNN_L4D2", "CNN_L6D2"]
     if net_name == "CNN_L2D1":
         conv_channels = [32, 64]
     elif net_name == "CNN_L2D2":
@@ -60,6 +62,8 @@ def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
         conv_channels = [32, 64, 128, 256]
     elif net_name == "CNN_L4D2":
         conv_channels = [64, 128, 256, 512]
+    elif net_name == "CNN_L6D2":
+        conv_channels = [32, 64, 64, 128, 128, 256]
     net = ConvNet(
         image_shape=input_shape,
         conv_channels=conv_channels,
@@ -80,6 +84,10 @@ def main(args):
     save_path = os.path.join(
         root_path, "results", "iDLG_%s_%s" % (dataset, net_name)
     )
+
+    if args.refined_dummy_init:
+        save_path += "_init"
+
     if args.add_clamp:
         save_path += "_clamp"
 
@@ -88,19 +96,8 @@ def main(args):
     num_dummy = 1
     Iteration = args.max_iter
     num_exp = 30
-
-    selected_indices = np.array([
-        1, 21, 34,  # label : 0
-        3,  6,  8,  # label : 1
-        5, 16, 25,  # label : 2
-        7, 10, 12,  # label : 3
-        2,  9, 20,  # label : 4
-        0, 11, 35,  # label : 5
-        13, 18, 32,  # label : 6
-        15, 29, 38,  # label : 7
-        17, 31, 41,  # label : 8
-        4, 19, 22   # label : 9
-        ])
+    # run_methods = ["iDLG", "DLG"]
+    run_methods = ["iDLG"]
 
     tt = transforms.Compose([transforms.ToTensor()])
     tp = transforms.Compose([transforms.ToPILImage()])
@@ -115,18 +112,63 @@ def main(args):
         os.mkdir(save_path)
 
     """ load data """
+    selected_indices = []
     cmap = "viridis"
     if dataset == 'MNIST':
         cmap = "gray"
         shape_img = (28, 28)
         num_classes = 10
         channel = 1
+        # hidden = 588
         dst = datasets.MNIST(data_path, download=True)
-
+        selected_indices = np.array([
+            1, 21, 34,  # label : 0
+            3,  6,  8,  # label : 1
+            5, 16, 25,  # label : 2
+            7, 10, 12,  # label : 3
+            2,  9, 20,  # label : 4
+            0, 11, 35,  # label : 5
+            13, 18, 32,  # label : 6
+            15, 29, 38,  # label : 7
+            17, 31, 41,  # label : 8
+            4, 19, 22   # label : 9
+        ])
+    elif dataset == "cifar10":
+        shape_img = (32, 32)
+        num_classes = 100
+        channel = 3
+        # hidden = 768
+        dst = datasets.CIFAR10(data_path, download=True)
+        # selected_indices = np.array([
+        #     29, 30, 35,
+        #     4,  5, 32,
+        #     6, 13, 18,
+        #     9, 17, 21,
+        #     3, 10, 20,
+        #     27, 40, 51,
+        #     0, 19, 22,
+        #     7, 11, 12,
+        #     8, 62, 69,
+        #     1,  2, 14
+        # ])
+        selected_indices = np.array([
+            29,  30,  35,  49,  77,  93, 115, 116, 129, 165,
+            4,   5,  32,  44,  45,  46,  60,  61,  64,  65,
+            6,  13,  18,  24,  41,  42,  47,  48,  54,  55,
+            9,  17,  21,  26,  33,  36,  38,  39,  59,  74,
+            3,  10,  20,  28,  34,  58,  66,  82,  86,  89,
+            27,  40,  51,  56,  70,  81,  83, 107, 128, 148,
+            0,  19,  22,  23,  25,  72,  95, 103, 104, 117,
+            7,  11,  12,  37,  43,  52,  68,  73,  84,  85,
+            8,  62,  69,  92, 100, 106, 111, 135, 139, 155,
+            1,   2,  14,  15,  16,  31,  50,  53,  67,  71
+        ])
+        num_exp = selected_indices.shape[0]
     elif dataset == 'cifar100':
         shape_img = (32, 32)
         num_classes = 100
         channel = 3
+        # hidden = 768
         dst = datasets.CIFAR100(data_path, download=True)
 
     elif dataset == 'lfw':
@@ -137,10 +179,13 @@ def main(args):
         dst = lfw_dataset(lfw_path, shape_img)
 
     elif dataset == 'CheXpert':
-        shape_img = (224, 224)
+        shape_img = (112, 112)
         num_classes = 2
         channel = 3
-        dst = CheXpertDataset(csv_path='./idlg_data_entry.csv')
+        resize_t = transforms.Resize(shape_img)
+        dst = CheXpertDataset(
+            csv_path='./idlg_data_entry.csv', transforms=resize_t)
+        selected_indices = np.arange(0, 30, 3)
     else:
         exit('unknown dataset')
 
@@ -150,12 +195,14 @@ def main(args):
         num_classes=num_classes
     )
     net = net.to(device)
+    # net.eval()
 
     # Load model pretrain weights
     if os.path.isfile(args.model_ckpt):
         ckpt = torch.load(args.model_ckpt)
         net.load_state_dict(ckpt)
 
+    num_success = 0
     criterion = nn.CrossEntropyLoss().to(device)
     ''' train DLG and iDLG '''
     for idx_exp in range(num_exp):
@@ -164,7 +211,7 @@ def main(args):
         np.random.seed(idx_exp)
         # idx_shuffle = np.random.permutation(len(dst))
 
-        for method in ['DLG', 'iDLG']:
+        for method in run_methods:
             print('%s, Try to generate %d images' % (method, num_dummy))
 
             # criterion = nn.CrossEntropyLoss().to(device)
@@ -187,7 +234,7 @@ def main(args):
             original_dy_dx = list((t.detach().clone() for t in dy_dx))
 
             # generate dummy data and label
-            torch.cuda.manual_seed_all(10)
+            torch.manual_seed(10)
             dummy_data = torch.randn(gt_data.size()).to(
                 device).requires_grad_(True)
             dummy_label = torch.randn(
@@ -195,8 +242,9 @@ def main(args):
                 ).to(device).requires_grad_(True)
 
             # truncated dummy image and label
-            dummy_data.data = torch.clamp(dummy_data + 0.5, 0, 1)
-            dummy_label.data = torch.clamp(dummy_label + 0.5, 0, 1)
+            if args.refined_dummy_init:
+                dummy_data.data = torch.clamp(dummy_data + 0.5, 0, 1)
+                dummy_label.data = torch.clamp(dummy_label + 0.5, 0, 1)
 
             if method == 'DLG':
                 # optim_obj = [dummy_data, dummy_label]
@@ -264,7 +312,7 @@ def main(args):
                 scheduler.step()
 
                 # if iters % int(Iteration / 30) == 0:
-                if iters % 30 == 0:
+                if iters % 5 == 0:
                     current_time = str(time.strftime(
                         "[%Y-%m-%d %H:%M:%S]", time.localtime()))
                     print(current_time, iters,
@@ -276,7 +324,7 @@ def main(args):
                     history_iters.append(iters)
 
                     for imidx in range(num_dummy):
-                        plt.figure(figsize=(12, 8))
+                        plt.figure(figsize=(12, 6))
                         plt.subplot(3, 10, 1)
                         plt.imshow(tp(gt_data[imidx].cpu()), cmap=cmap)
                         for i in range(min(len(history), 29)):
@@ -286,20 +334,36 @@ def main(args):
                             plt.axis('off')
                         if method == 'DLG':
                             plt.savefig(
-                                '%s/DLG_on_%s_%05d.png' %
-                                (save_path, imidx_list, imidx_list[imidx])
+                                '%s/DLG_on_%05d.png' %
+                                (save_path, selected_indices[idx_exp])
                                 )
                             plt.close()
                         elif method == 'iDLG':
                             plt.savefig(
-                                '%s/iDLG_on_%s_%05d.png' %
-                                (save_path, imidx_list, imidx_list[imidx])
+                                '%s/iDLG_on_%05d.png' %
+                                (save_path, selected_indices[idx_exp])
                                 )
                             plt.close()
 
-                    # if current_loss < 0.000001:  # converge
+                    # if current_loss < 0.000001:
+                    # converge
                     if mses[-1] < 1e-6:
                         break
+            if mses[-1] < 1e-3:
+                num_success += 1
+            # Save mse curve
+            plt.figure(figsize=(6, 4))
+            plt.plot(mses)
+            plt.xlabel("Iterations")
+            plt.ylabel("MSE")
+            plt.ylim(-1e-3, 0.1)
+            plt.xlim(-1, (iters // 100 + 1) * 100)
+            plt.title("Reconstruction MSE Loss")
+            plt.savefig(
+                "%s/mse_%s_on_%05d.png" %
+                (save_path, method, selected_indices[idx_exp])
+                )
+            plt.close()
 
             if method == 'DLG':
                 loss_DLG = losses
@@ -310,13 +374,19 @@ def main(args):
                 label_iDLG = label_pred.item()
                 mse_iDLG = mses
 
-        print('imidx_list:', imidx_list)
-        print('loss_DLG:', loss_DLG[-1], 'loss_iDLG:', loss_iDLG[-1])
-        print('mse_DLG:', mse_DLG[-1], 'mse_iDLG:', mse_iDLG[-1])
-        print('gt_label:', gt_label.detach().cpu().data.numpy(),
-              'lab_DLG:', label_DLG, 'lab_iDLG:', label_iDLG)
+        print('gt_label:', gt_label.detach().cpu().data.numpy())
+        if "DLG" in run_methods:
+            print('loss_DLG:', loss_DLG[-1], 'mse_DLG:', mse_DLG[-1],
+                  'lab_DLG:', label_DLG)
+        if "iDLG" in run_methods:
+            print('loss_iDLG:', loss_iDLG[-1], 'mse_iDLG:', mse_iDLG[-1],
+                  'lab_iDLG:', label_iDLG)
 
         print('----------------------\n\n')
+
+    print("Number of successful recover:", num_success)
+
+    # end
 
 
 if __name__ == '__main__':
@@ -335,7 +405,8 @@ if __name__ == '__main__':
             "--cnn_name",
             type=str,
             default="CNN_L2D1",
-            choices=["CNN_L2D1", "CNN_L2D2", "CNN_L4D1", "CNN_L4D2"],
+            choices=["CNN_L2D1", "CNN_L2D2", "CNN_L4D1",
+                     "CNN_L4D2", "CNN_L6D2"],
             help="CNN config")
 
     parser.add_argument(
@@ -361,7 +432,11 @@ if __name__ == '__main__':
             type=str,
             default="MNIST",
             help="use image dataset",
-            choices=["MNIST", "cifar100", "CheXpert"])
+            choices=["MNIST", "cifar10", "cifar100", "CheXpert"])
+
+    parser.add_argument(
+            "--refined_dummy_init",
+            action="store_true")
 
     parser.add_argument(
             "--add_clamp",

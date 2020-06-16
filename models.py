@@ -1,10 +1,17 @@
 import math
 import torch
 import torch.nn as nn
-import torch.nn.init as init
-from mnist_dataloader import torch_same_seeds
-# from torch.autograd import Variable
-# import torch.nn.functional as F
+# import torch.nn.init as init
+
+
+def torch_same_seeds(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        # if you are using multi-GPU.
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
 class SwishBackend(torch.autograd.Function):
@@ -41,26 +48,35 @@ class Swish(nn.Module):
         return SwishBackend.apply(x)
 
 
+# def init_weights(m):
+#     '''Init layer parameters.'''
+#     torch_same_seeds(10)
+#     if isinstance(m, nn.Conv2d):
+#         init.kaiming_normal_(m.weight, mode='fan_out')
+#         m.weight.data = torch.clamp(m.weight, -1, 1)
+#         if hasattr(m, "bias"):
+#             m.bias.data.uniform_(-0.5, 0.5)
+#     elif isinstance(m, nn.BatchNorm2d):
+#         init.constant_(m.weight, 1)
+#         init.constant_(m.bias, 0)
+#     elif isinstance(m, nn.Linear):
+#         init.normal_(m.weight, std=1e-3)
+#         m.weight.data = torch.clamp(m.weight, -1, 1)
+#         if hasattr(m, "bias"):
+#             m.bias.data.uniform_(-0.5, 0.5)
+
+
 def init_weights(m):
-    '''Init layer parameters.'''
-    torch_same_seeds(10)
-    if isinstance(m, nn.Conv2d):
-        init.kaiming_normal_(m.weight, mode='fan_out')
-        m.weight.data = torch.clamp(m.weight, -1, 1)
-        # m.weight.data.uniform_(-0.5, 0.5)
-        if hasattr(m, "bias"):
-            # init.constant_(m.bias, 0.5)
-            m.weight.data.uniform_(-0.5, 0.5)
-    elif isinstance(m, nn.BatchNorm2d):
-        init.constant_(m.weight, 1)
-        init.constant_(m.bias, 0)
-    elif isinstance(m, nn.Linear):
-        init.normal_(m.weight, std=1e-3)
-        m.weight.data = torch.clamp(m.weight, -1, 1)
-        # m.weight.data.uniform_(-0.5, 0.5)
-        if hasattr(m, "bias"):
-            # init.constant_(m.bias, 0.5)
-            m.weight.data.uniform_(-0.5, 0.5)
+    norm = 0.1
+    # best for L4D2 is 0.1
+    if hasattr(m, "weight"):
+        torch_same_seeds(10)
+        m.weight.data.uniform_(-norm, norm)
+        # m.weight.data.normal_(0, 1e-3)
+    if hasattr(m, "bias"):
+        torch_same_seeds(10)
+        # m.weight.data.normal_(0, 1e-3)
+        m.bias.data.uniform_(-norm, norm)
 
 
 class Conv2dAct(nn.Sequential):
@@ -79,7 +95,10 @@ class Conv2dAct(nn.Sequential):
                       kernel_size,
                       stride,
                       padding,
-                      groups=groups), activation())
+                      groups=groups),
+            # nn.BatchNorm2d(out_planes),
+            activation()
+        )
 
 
 def get_conv_out_size(
@@ -104,12 +123,13 @@ class ConvNet(nn.Module):
                  stride=2,
                  padding=1,
                  num_classes=10,
-                 use_swish=False):
+                 use_swish=True):
         super(ConvNet, self).__init__()
         # Default input channel is 3
         num_conv = len(conv_channels)
         conv_channels = [image_shape[0]] + conv_channels
         activation = nn.Sigmoid
+        # activation = nn.ReLU
         if use_swish:
             activation = Swish
         # Build encoder layers

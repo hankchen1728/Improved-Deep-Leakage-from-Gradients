@@ -7,13 +7,13 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-from dataset import CheXpertDataset
+# from dataset import CheXpertDataset
 # import pickle
 import PIL.Image as Image
 
 
 class LeNet(nn.Module):
-    def __init__(self, channel=3, hideen=768, num_classes=10):
+    def __init__(self, channel=3, hidden=768, num_classes=10):
         super(LeNet, self).__init__()
         act = nn.Sigmoid
         # act = Swish
@@ -26,7 +26,7 @@ class LeNet(nn.Module):
             act(),
         )
         self.fc = nn.Sequential(
-            nn.Linear(hideen, num_classes)
+            nn.Linear(hidden, num_classes)
         )
 
     def forward(self, x):
@@ -152,7 +152,7 @@ def main(args):
 
     ''' train DLG and iDLG '''
     for idx_net in range(num_exp):
-        net = LeNet(channel=channel, hideen=hidden, num_classes=num_classes)
+        net = LeNet(channel=channel, hidden=hidden, num_classes=num_classes)
         net.apply(weights_init)
         # net = config_net(net_name="CNN_L2D2", input_shape=(1, 28, 28))
 
