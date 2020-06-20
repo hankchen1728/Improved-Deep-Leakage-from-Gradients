@@ -198,7 +198,7 @@ def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
         num_classes=num_classes
     )
     return net
-=======
+
 def config_resnet18(input_channels=1, num_classes=10):
     resnet = resnet18(pretrained=False, progress=True)
     resnet.conv1 = nn.Conv2d(
@@ -212,4 +212,38 @@ def config_resnet18(input_channels=1, num_classes=10):
     # weight initialization
     resnet.apply(init_weights)
     return resnet
->>>>>>> 446fa93db7bb6dce9d906f2862f0821cb47702d2
+
+
+def config_net(net_name="", input_shape=(3, 32, 32), num_classes=10):
+    assert net_name in ["CNN_L2D1", "CNN_L2D2",
+                        "CNN_L4D1", "CNN_L4D2",
+                        "CNN_L4D4", "CNN_L6D2",
+                        "CNN_L7D2", "ResNet18"], "{}".format(net_name)
+
+    if net_name == "CNN_L2D1":
+        conv_channels = [32, 64]
+    elif net_name == "CNN_L2D2":
+        conv_channels = [64, 128]
+    elif net_name == "CNN_L4D1":
+        conv_channels = [32, 64, 128, 256]
+    elif net_name == "CNN_L4D2":
+        conv_channels = [64, 128, 256, 512]
+    elif net_name == "CNN_L4D4":
+        conv_channels = [128, 256, 512, 1024]
+    elif net_name == "CNN_L6D2":
+        conv_channels = [32, 64, 64, 128, 128, 256]
+    elif net_name == "CNN_L7D2":
+        conv_channels = [64, 64, 64, 128, 128, 256, 256]
+    elif net_name == "ResNet18":
+        net = config_resnet18(
+            input_channels=input_shape[0],
+            num_classes=num_classes)
+        return net
+        # end switch
+
+    net = ConvNet(
+        image_shape=input_shape,
+        conv_channels=conv_channels,
+        num_classes=num_classes
+    )
+    return net
