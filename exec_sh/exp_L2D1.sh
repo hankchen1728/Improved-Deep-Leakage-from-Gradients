@@ -1,4 +1,4 @@
-python3 iDLG_playground.py \
+python3 iDLG_exp.py \
     --visible_gpus 2 \
     --cnn_name "CNN_L2D1" \
     --lr 0.1 \

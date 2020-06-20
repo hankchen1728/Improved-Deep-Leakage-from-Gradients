@@ -97,6 +97,12 @@ def main(args):
             y = criterion(out, gt_label)
             dy_dx = torch.autograd.grad(y, net.parameters())
             original_dy_dx = list((t.detach().clone() for t in dy_dx))
+            if args.grad_norm:
+                grad_norm = [(x**2).sum().item()**0.5 for x in original_dy_dx]
+                original_dy_dx = [
+                    grad / norm
+                    for grad, norm in zip(original_dy_dx, grad_norm)
+                ]
 
             # generate dummy data and label
             torch.manual_seed(10)
@@ -155,7 +161,8 @@ def main(args):
                                             method=method,
                                             criterion=criterion,
                                             net=net,
-                                            original_dy_dx=original_dy_dx)
+                                            original_dy_dx=original_dy_dx,
+                                            grad_norm=args.grad_norm)
 
                 optimizer.step(closure)
 
@@ -260,6 +267,8 @@ if __name__ == '__main__':
                         choices=["MNIST", "cifar10", "cifar100", "CheXpert"])
 
     parser.add_argument("--add_clamp", action="store_true")
+
+    parser.add_argument("--grad_norm", action="store_true")
 
     args = parser.parse_args()
 
