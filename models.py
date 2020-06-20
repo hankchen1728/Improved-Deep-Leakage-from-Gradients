@@ -1,6 +1,7 @@
 import math
 import torch
 import torch.nn as nn
+from torchvision.models import resnet18
 # import torch.nn.init as init
 
 
@@ -51,19 +52,22 @@ class Swish(nn.Module):
 # def init_weights(m):
 #     '''Init layer parameters.'''
 #     torch_same_seeds(10)
+#     norm = 0.05
 #     if isinstance(m, nn.Conv2d):
 #         init.kaiming_normal_(m.weight, mode='fan_out')
-#         m.weight.data = torch.clamp(m.weight, -1, 1)
-#         if hasattr(m, "bias"):
-#             m.bias.data.uniform_(-0.5, 0.5)
+#         m.weight.data *= norm
+#         # m.weight.data = torch.clamp(m.weight, -norm, norm)
+#         if hasattr(m, "bias") and m.bias is not None:
+#             m.bias.data.uniform_(-norm, norm)
 #     elif isinstance(m, nn.BatchNorm2d):
 #         init.constant_(m.weight, 1)
 #         init.constant_(m.bias, 0)
 #     elif isinstance(m, nn.Linear):
-#         init.normal_(m.weight, std=1e-3)
-#         m.weight.data = torch.clamp(m.weight, -1, 1)
-#         if hasattr(m, "bias"):
-#             m.bias.data.uniform_(-0.5, 0.5)
+#         init.normal_(m.weight, std=1)
+#         m.weight.data *= norm
+#         # m.weight.data = torch.clamp(m.weight, -norm, norm)
+#         if hasattr(m, "bias") and m.bias is not None:
+#             m.bias.data.uniform_(-norm, norm)
 
 
 def init_weights(m):
@@ -167,3 +171,18 @@ class ConvNet(nn.Module):
         out = x.view(x.size(0), -1)
         out = self.classifier(out)
         return out
+
+
+def config_resnet18(input_channels=1, num_classes=10):
+    resnet = resnet18(pretrained=False, progress=True)
+    resnet.conv1 = nn.Conv2d(
+        in_channels=input_channels,
+        out_channels=64,
+        kernel_size=(7, 7),
+        stride=(2, 2),
+        padding=(3, 3),
+        bias=False)
+    resnet.fc = nn.Linear(512, num_classes)
+    # weight initialization
+    resnet.apply(init_weights)
+    return resnet

@@ -3,6 +3,4 @@ python3 iDLG_exp.py \
     --cnn_name "CNN_L4D2" \
     --lr 0.1 \
     --max_iter 300 \
-    --dataset "cifar10" \
-    # --refined_dummy_init \
-    # --add_clamp
+    --dataset "cifar10"

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 class CheXpertDataset(Dataset):
-    def __init__(self, csv_path, transforms=None, mode='train'):
+    def __init__(self, csv_path, channels=1, transforms=None, mode='train'):
         """
         Args:
             csv_path (string): path to csv file
@@ -24,6 +24,7 @@ class CheXpertDataset(Dataset):
         self.batch_id = 0
 
         self.transforms = transforms
+        self.channels = channels
 
     def __getitem__(self, index):
         label_as_tensor = self.labels[index]
@@ -31,7 +32,10 @@ class CheXpertDataset(Dataset):
 
         img_as_np = plt.imread(img_path)
         # raw_shape = img_as_np.shape
-        img_as_np = np.array([img_as_np] * 3).transpose(1, 2, 0)
+        if self.channels != 1:
+            img_as_np = np.array(
+                [img_as_np] * self.channels
+            ).transpose(1, 2, 0)
 
         img_as_np = Image.fromarray(img_as_np)
 
