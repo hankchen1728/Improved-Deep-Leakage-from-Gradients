@@ -1,6 +1,7 @@
 import time
 import os
 import argparse
+import functools
 import PIL.Image as Image
 
 import numpy as np
@@ -11,6 +12,8 @@ from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from models import ConvNet, config_net, config_resnet18
 from dataset import CheXpertDataset, ImageDataset, lfw_dataset
+from dataset import DatasetParams
+from utils import _closure, get_current_time, plot_dummy_x, plot_mse_curve
 
 
 def main(args):
@@ -48,90 +51,16 @@ def main(args):
     if not os.path.exists(save_path):
         os.mkdir(save_path)
     """ load data """
-    selected_indices = []
-    cmap = "viridis"
-    if dataset == 'MNIST':
-        shape_img = (28, 28)
-        num_classes = 10
-        channel = 1
-        # hidden = 588
-        dst = datasets.MNIST(data_path, download=True)
-        selected_indices = np.array([
-            1,
-            21,
-            34,  # label : 0
-            3,
-            6,
-            8,  # label : 1
-            5,
-            16,
-            25,  # label : 2
-            7,
-            10,
-            12,  # label : 3
-            2,
-            9,
-            20,  # label : 4
-            0,
-            11,
-            35,  # label : 5
-            13,
-            18,
-            32,  # label : 6
-            15,
-            29,
-            38,  # label : 7
-            17,
-            31,
-            41,  # label : 8
-            4,
-            19,
-            22  # label : 9
-        ])
-    elif dataset == "cifar10":
-        shape_img = (32, 32)
-        num_classes = 100
-        channel = 3
-        # hidden = 768
-        dst = datasets.CIFAR10(data_path, download=True)
-        selected_indices = np.array([
-            29, 30, 35, 49, 77, 93, 115, 116, 129, 165, 4, 5, 32, 44, 45, 46,
-            60, 61, 64, 65, 6, 13, 18, 24, 41, 42, 47, 48, 54, 55, 9, 17, 21,
-            26, 33, 36, 38, 39, 59, 74, 3, 10, 20, 28, 34, 58, 66, 82, 86, 89,
-            27, 40, 51, 56, 70, 81, 83, 107, 128, 148, 0, 19, 22, 23, 25, 72,
-            95, 103, 104, 117, 7, 11, 12, 37, 43, 52, 68, 73, 84, 85, 8, 62,
-            69, 92, 100, 106, 111, 135, 139, 155, 1, 2, 14, 15, 16, 31, 50, 53,
-            67, 71
-        ])
-        num_exp = selected_indices.shape[0]
-    elif dataset == 'cifar100':
-        shape_img = (32, 32)
-        num_classes = 100
-        channel = 3
-        # hidden = 768
-        dst = datasets.CIFAR100(data_path, download=True)
 
-    elif dataset == 'lfw':
-        shape_img = (32, 32)
-        num_classes = 5749
-        channel = 3
-        lfw_path = os.path.join(root_path, '../data/lfw')
-        dst = lfw_dataset(lfw_path, shape_img)
+    data_params = DatasetParams()
+    data_params.config(name=dataset, root_path=root_path, data_path=data_path)
 
-    elif dataset == 'CheXpert':
-        shape_img = (224, 224)
-        num_classes = 2
-        channel = 1
-        resize_t = transforms.Resize(shape_img)
-        dst = CheXpertDataset(csv_path='./idlg_data_entry.csv',
-                              channels=channel,
-                              transforms=resize_t)
-        selected_indices = np.arange(0, 30, 3)
-    else:
-        exit('unknown dataset')
-
-    if channel == 1:
-        cmap = "gray"
+    shape_img = data_params.shape_img
+    num_classes = data_params.num_classes
+    channel = data_params.channel
+    dst = data_params.dst
+    selected_indices = data_params.selected_indices
+    cmap = data_params.cmap
 
     # Build ConvNet
     net = config_net(net_name=net_name,
@@ -226,53 +155,20 @@ def main(args):
             print('lr =', initial_lr)
             for iters in range(Iteration):
 
-                def closure():
-                    optimizer.zero_grad()
-                    pred = net(dummy_data)
-                    if method == 'DLG':
-                        dummy_loss = -torch.mean(
-                            torch.sum(torch.softmax(dummy_label, -1) *
-                                      torch.log(torch.softmax(pred, -1)),
-                                      dim=-1))
-                        # dummy_loss = criterion(pred, gt_label)
-                    elif method == 'iDLG':
-                        dummy_loss = criterion(pred, label_pred)
-
-                    dummy_dy_dx = torch.autograd.grad(dummy_loss,
-                                                      net.parameters(),
-                                                      create_graph=True)
-
-                    grad_diff = 0
-                    for gx, gy in zip(dummy_dy_dx, original_dy_dx):
-                        grad_diff += ((gx - gy)**2).sum()
-                    grad_diff.backward()
-                    # nn.utils.clip_grad_norm_([dummy_data], max_norm=0.1)
-                    return grad_diff
+                closure = functools.partial(_closure,
+                                            optimizer=optimizer,
+                                            dummy_data=dummy_data,
+                                            dummy_label=dummy_label,
+                                            label_pred=label_pred,
+                                            method=method,
+                                            criterion=criterion,
+                                            original_dy_dx=original_dy_dx)
 
                 optimizer.step(closure)
 
-                # pixel value clip
+                # pixel value clamp
                 if args.add_clamp:
                     dummy_data.data = torch.clamp(dummy_data, 0, 1)
-                # print(dummy_data.data.max(), dummy_data.data.min())
-                # if args.add_clamp:
-                #     # Min-max normalization
-                #     dummy_max = dummy_data.data.max()
-                #     dummy_min = dummy_data.data.min()
-                #     dummy_diff = dummy_max - dummy_min
-                #     if dummy_diff != 0:
-                #         if dummy_max > 1 and dummy_min > 0:
-                #             dummy_data.data = \
-                #                 (dummy_data - dummy_min) / dummy_diff \
-                #                 * (1 - dummy_min) + dummy_min
-                #         elif dummy_max < 1 and dummy_min < 0:
-                #             dummy_data.data = \
-                #                 (dummy_data - dummy_min) / dummy_diff \
-                #                 * dummy_max
-                #         elif dummy_max > 1 and dummy_min < 0:
-                #             dummy_data.data = \
-                #                 (dummy_data - dummy_min) / dummy_diff
-                #         print(dummy_data.data.max(), dummy_data.data.min())
 
                 current_loss = closure().item()
                 train_iters.append(iters)
@@ -281,8 +177,7 @@ def main(args):
                 scheduler.step()
 
                 if iters % plot_steps == 0:
-                    current_time = str(
-                        time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()))
+                    current_time = get_current_time()
                     print(current_time, iters,
                           'loss = %.8f, mse = %.8f' % (current_loss, mses[-1]))
                     history.append([
@@ -292,22 +187,9 @@ def main(args):
                     history_iters.append(iters)
 
                     for imidx in range(num_dummy):
-                        plt.figure(figsize=(12, 6))
-                        plt.subplot(3, 10, 1)
-                        plt.imshow(tp(gt_data[imidx].cpu()), cmap=cmap)
-                        for i in range(min(len(history), 29)):
-                            plt.subplot(3, 10, i + 2)
-                            plt.imshow(history[i][imidx], cmap=cmap)
-                            plt.title('iter=%d' % (history_iters[i]))
-                            plt.axis('off')
-
-                        # save plot figure
-                        plt.savefig(
-                            '%s/%s_on_%05d.png' %
-                            (save_path, method, selected_indices[idx_exp]),
-                            dpi=200,
-                            bbox_inches="tight")
-                        plt.close()
+                        plot_dummy_x(imidx, cmap, tp, gt_data, history,
+                                     history_iters, save_path, method,
+                                     selected_indices, idx_exp)
 
                     # if current_loss < 0.000001:
                     # converge
@@ -316,16 +198,8 @@ def main(args):
             if mses[-1] < 1e-3:
                 num_success += 1
             # Save mse curve
-            plt.figure(figsize=(6, 4))
-            plt.plot(mses)
-            plt.xlabel("Iterations")
-            plt.ylabel("MSE")
-            plt.ylim(-1e-3, 0.1)
-            plt.xlim(-1, (iters // 100 + 1) * 100)
-            plt.title("Reconstruction MSE Loss")
-            plt.savefig("%s/mse_%s_on_%05d.png" %
-                        (save_path, method, selected_indices[idx_exp]))
-            plt.close()
+            plot_mse_curve(mses, iters, save_path, method, selected_indices,
+                           idx_exp)
 
             if method == 'DLG':
                 loss_DLG = losses
