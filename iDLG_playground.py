@@ -1,18 +1,10 @@
-import time
-import os
-import argparse
-import functools
-import PIL.Image as Image
-
+import os, argparse, functools
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
-from torchvision import datasets, transforms
+from torchvision import transforms
 from models import ConvNet, config_net, config_resnet18
-from dataset import CheXpertDataset, ImageDataset, lfw_dataset
-from dataset import DatasetParams
+from dataset import CheXpertDataset, ImageDataset, lfw_dataset, DatasetParams
 from utils import _closure, get_current_time, plot_dummy_x, plot_mse_curve
 
 
@@ -162,6 +154,7 @@ def main(args):
                                             label_pred=label_pred,
                                             method=method,
                                             criterion=criterion,
+                                            net=net,
                                             original_dy_dx=original_dy_dx)
 
                 optimizer.step(closure)
