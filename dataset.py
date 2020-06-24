@@ -34,9 +34,8 @@ class CheXpertDataset(Dataset):
         img_as_np = plt.imread(img_path)
         # raw_shape = img_as_np.shape
         if self.channels != 1:
-            img_as_np = np.array(
-                [img_as_np] * self.channels
-            ).transpose(1, 2, 0)
+            img_as_np = np.array([img_as_np] * self.channels).transpose(
+                1, 2, 0)
 
         img_as_np = Image.fromarray(img_as_np)
 
@@ -94,9 +93,9 @@ def lfw_dataset(lfw_path, shape_img):
                 labels_all.append(foldidx)
 
     transform = transforms.Compose([transforms.Resize(size=shape_img)])
-    dst = ImageDataset(
-            images_all, np.asarray(labels_all, dtype=int),
-            transform=transform)
+    dst = ImageDataset(images_all,
+                       np.asarray(labels_all, dtype=int),
+                       transform=transform)
     return dst
 
 
@@ -196,6 +195,7 @@ class DatasetParams():
         else:
             exit('unknown dataset')
 
+
 class ImageDataset(Dataset):
     def __init__(self, imgs, labs, transform=None):
         self.imgs = imgs  # img paths
@@ -227,7 +227,84 @@ def lfw_dataset(lfw_path, shape_img):
                 labels_all.append(foldidx)
 
     transform = transforms.Compose([transforms.Resize(size=shape_img)])
-    dst = ImageDataset(
-            images_all, np.asarray(labels_all, dtype=int),
-            transform=transform)
+    dst = ImageDataset(images_all,
+                       np.asarray(labels_all, dtype=int),
+                       transform=transform)
     return dst
+
+
+class DatasetParams():
+    def __init__(self):
+        self.shape_img = None
+        self.num_classes = None
+        self.channel = None
+        self.dst = None
+        self.selected_indices = None
+        self.num_exp = None
+        self.cmap = "viridis"
+        
+    def config(self, name, root_path, data_path):
+        if name == 'MNIST':
+            self.shape_img = (28, 28)
+            self.num_classes = 10
+            self.channel = 1
+            # hidden = 588
+            self.dst = datasets.MNIST(data_path, download=True)
+            self.selected_indices = np.array([
+                1, 21, 34,
+                3, 6, 8,
+                5, 16, 25,
+                7, 10, 12,
+                2, 9, 20,
+                0, 11, 35,
+                13, 18, 32,
+                15, 29, 38,
+                17, 31, 41,
+                4, 19, 22
+            ])
+        elif name == "cifar10":
+            self.shape_img = (32, 32)
+            self.num_classes = 100
+            self.channel = 3
+            # hidden = 768
+            self.dst = datasets.CIFAR10(data_path, download=True)
+            self.selected_indices = np.array([
+                29, 30, 35, 49, 77, 93, 115, 116, 129, 165,
+                4, 5, 32, 44, 45, 46, 60, 61, 64, 65, 6, 13,
+                18, 24, 41, 42, 47, 48, 54, 55, 9, 17, 21,
+                26, 33, 36, 38, 39, 59, 74, 3, 10, 20, 28,
+                34, 58, 66, 82, 86, 89, 27, 40, 51, 56, 70,
+                81, 83, 107, 128, 148, 0, 19, 22, 23, 25, 72,
+                95, 103, 104, 117, 7, 11, 12, 37, 43, 52, 68,
+                73, 84, 85, 8, 62, 69, 92, 100, 106, 111, 135,
+                139, 155, 1, 2, 14, 15, 16, 31, 50, 53, 67, 71
+            ])
+            self.num_exp = self.selected_indices.shape[0]
+        elif name == 'cifar100':
+            self.shape_img = (32, 32)
+            self.num_classes = 100
+            self.channel = 3
+            # hidden = 768
+            self.dst = datasets.CIFAR100(data_path, download=True)
+
+        elif name == 'lfw':
+            self.shape_img = (32, 32)
+            self.num_classes = 5749
+            self.channel = 3
+            self.lfw_path = os.path.join(root_path, '../data/lfw')
+            self.dst = lfw_dataset(self.lfw_path, self.shape_img)
+
+        elif name == 'CheXpert':
+            self.shape_img = (224, 224)
+            self.num_classes = 2
+            self.channel = 1
+            resize_t = transforms.Resize(self.shape_img)
+            self.dst = CheXpertDataset(csv_path='./idlg_data_entry.csv',
+                                       channels=self.channel,
+                                       transforms=resize_t)
+            self.selected_indices = np.arange(0, 30, 3)
+        else:
+            exit('unknown dataset')
+
+        if self.channel == 1:
+            self.cmap = "gray"

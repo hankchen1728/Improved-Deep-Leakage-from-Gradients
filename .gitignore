@@ -16,5 +16,8 @@
 # Temporary files
 **/tmp/
 
+# Result plot images
+**/results/
+
 # Ignore the experiment checkpoints
 **/checkpoint/
