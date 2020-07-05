@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 
 def _closure(optimizer, dummy_data, dummy_label, label_pred, method, criterion,
-             net, original_dy_dx, grad_norm):
+             net, orig_dy_dx, grad_norm):
     optimizer.zero_grad()
     pred = net(dummy_data)
     if method == 'DLG':
@@ -22,14 +22,15 @@ def _closure(optimizer, dummy_data, dummy_label, label_pred, method, criterion,
                                       net.parameters(),
                                       create_graph=True)
 
-    grad_diff = 0
     if grad_norm:
-        dummy_norm = [(x**2).sum().item()**0.5 for x in dummy_dy_dx]
+        pass
+        # dummy_norm = [(x**2).sum().item()**0.5 for x in dummy_dy_dx]
 
-        dummy_dy_dx = [
-            grad / norm for grad, norm in zip(dummy_dy_dx, dummy_norm)
-        ]
-    for dg, og in zip(dummy_dy_dx, original_dy_dx):
+        # dummy_dy_dx = [
+        #     grad / norm for grad, norm in zip(dummy_dy_dx, dummy_norm)
+        # ]
+    grad_diff = 0
+    for dg, og in zip(dummy_dy_dx, orig_dy_dx):
         grad_diff += ((dg - og)**2).sum()
     grad_diff.backward()
     # nn.utils.clip_grad_norm_([dummy_data], max_norm=0.1)

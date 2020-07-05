@@ -96,12 +96,13 @@ def main(args):
             out = net(gt_data)
             y = criterion(out, gt_label)
             dy_dx = torch.autograd.grad(y, net.parameters())
-            original_dy_dx = list((t.detach().clone() for t in dy_dx))
+            orig_dy_dx = list((t.detach().clone() for t in dy_dx))
             if args.grad_norm:
-                grad_norm = [(x**2).sum().item()**0.5 for x in original_dy_dx]
-                original_dy_dx = [
-                    grad / norm
-                    for grad, norm in zip(original_dy_dx, grad_norm)
+                grad_max = [x.max().item() for x in orig_dy_dx]
+                grad_min = [x.min().item() for x in orig_dy_dx]
+                orig_dy_dx = [
+                    (g - g_min) / (g_max - g_min)
+                    for g, g_min, g_max in zip(orig_dy_dx, grad_min, grad_max)
                 ]
 
             # generate dummy data and label
@@ -124,19 +125,27 @@ def main(args):
                         'params': [dummy_data, dummy_label],
                         'initial_lr': initial_lr
                     }],
-                    lr=initial_lr)
+                    lr=initial_lr,
+                    max_iter=50,
+                    tolerance_grad=1e-9,
+                    tolerance_change=1e-11,
+                    history_size=250,
+                    line_search_fn="strong_wolfe")
             elif method == 'iDLG':
                 # optim_obj = [dummy_data, ]
-                optimizer = torch.optim.LBFGS([{
-                    'params': [
-                        dummy_data,
-                    ],
-                    'initial_lr': initial_lr
-                }],
-                                              lr=initial_lr)
+                optimizer = torch.optim.LBFGS(
+                    [{
+                        'params': [dummy_data],
+                        'initial_lr': initial_lr
+                    }],
+                    lr=initial_lr,
+                    max_iter=50,
+                    tolerance_grad=1e-9,
+                    tolerance_change=1e-11,
+                    history_size=250,
+                    line_search_fn="strong_wolfe")
                 # predict the ground-truth label
-                label_pred = torch.argmin(torch.sum(original_dy_dx[-2],
-                                                    dim=-1),
+                label_pred = torch.argmin(torch.sum(orig_dy_dx[-2], dim=-1),
                                           dim=-1).detach().reshape(
                                               (1, )).requires_grad_(False)
 
@@ -161,7 +170,7 @@ def main(args):
                                             method=method,
                                             criterion=criterion,
                                             net=net,
-                                            original_dy_dx=original_dy_dx,
+                                            orig_dy_dx=orig_dy_dx,
                                             grad_norm=args.grad_norm)
 
                 optimizer.step(closure)
@@ -193,7 +202,7 @@ def main(args):
 
                     # if current_loss < 0.000001:
                     # converge
-                    if mses[-1] < 1e-6:
+                    if mses[-1] < 1e-4:
                         break
             if mses[-1] < 1e-3:
                 num_success += 1
